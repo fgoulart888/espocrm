@@ -3,7 +3,7 @@ FROM php:8.2-apache
 
 # Pacotes e extensões necessários
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    unzip curl ca-certificates tar \
+    unzip curl ca-certificates findutils \
     libpng-dev libjpeg-dev libfreetype6-dev libzip-dev libicu-dev cron \
  && update-ca-certificates \
  && docker-php-ext-configure gd --with-freetype --with-jpeg \
@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
  && a2enmod rewrite headers \
  && rm -rf /var/lib/apt/lists/*
 
-# Ajustes do PHP
+# Ajustes PHP
 RUN { \
   echo "memory_limit=512M"; \
   echo "upload_max_filesize=64M"; \
@@ -26,11 +26,14 @@ RUN printf "ServerName localhost\n" > /etc/apache2/conf-available/servername.con
 # Diretório da app
 WORKDIR /var/www/html
 
-# Baixar release oficial e extrair na raiz do webroot
+# Baixar release oficial (ZIP) e extrair para o webroot
 ARG ESPO_VERSION=8.3.0
-RUN curl -L -o espo.tar.gz "https://github.com/espocrm/espocrm/releases/download/${ESPO_VERSION}/EspoCRM-${ESPO_VERSION}.tar.gz" \
- && tar -xzf espo.tar.gz --strip-components=1 -C /var/www/html \
- && rm espo.tar.gz
+RUN set -eux; \
+  curl -L -o /tmp/espo.zip "https://github.com/espocrm/espocrm/releases/download/${ESPO_VERSION}/EspoCRM-${ESPO_VERSION}.zip"; \
+  unzip -q /tmp/espo.zip -d /tmp; \
+  espo_dir="$(find /tmp -maxdepth 1 -type d -name 'EspoCRM-*' | head -n1)"; \
+  mv "${espo_dir}"/* /var/www/html/; \
+  rm -rf /tmp/espo.zip "${espo_dir}"
 
 # Pastas graváveis e permissões
 RUN mkdir -p data custom extensions \
@@ -45,7 +48,7 @@ RUN printf '<Directory /var/www/html>\n  AllowOverride All\n  Require all grante
 RUN echo "* * * * * www-data php /var/www/html/cron.php > /dev/null 2>&1" > /etc/cron.d/espocrm \
  && chmod 0644 /etc/cron.d/espocrm && crontab /etc/cron.d/espocrm
 
-# Healthcheck simples (retorna 200 na raiz)
+# Healthcheck simples
 HEALTHCHECK --interval=30s --timeout=5s --retries=5 CMD curl -fsS http://127.0.0.1/ >/dev/null || exit 1
 
 # Iniciar cron + apache
