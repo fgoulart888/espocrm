@@ -2,11 +2,15 @@
 FROM php:8.2-apache
 
 # Instalar pacotes e extensões necessárias
-RUN apt-get update && apt-get install -y \
-    unzip git curl libpng-dev libjpeg-dev libfreetype6-dev libzip-dev libicu-dev cron \
+# Inclui: tar e ca-certificates (evita erro ao baixar .tar.gz via HTTPS)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    unzip curl ca-certificates tar \
+    libpng-dev libjpeg-dev libfreetype6-dev libzip-dev libicu-dev cron \
+ && update-ca-certificates \
  && docker-php-ext-configure gd --with-freetype --with-jpeg \
  && docker-php-ext-install gd intl zip pdo pdo_mysql mysqli \
- && a2enmod rewrite headers && rm -rf /var/lib/apt/lists/*
+ && a2enmod rewrite headers \
+ && rm -rf /var/lib/apt/lists/*
 
 # Configurações PHP
 RUN { \
